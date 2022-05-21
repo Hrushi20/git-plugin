@@ -63,7 +63,7 @@
     <gitHubRepo>jenkinsci/${project.artifactId}-plugin</gitHubRepo>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <argLine>-Dfile.encoding=${project.build.sourceEncoding}</argLine>
-    <jenkins.version>2.289.1</jenkins.version>
+    <jenkins.version>2.346</jenkins.version>
     <java.level>8</java.level>
     <no-test-jar>false</no-test-jar>
     <useBeta>true</useBeta>
@@ -263,6 +263,11 @@
       <artifactId>jenkins-test-harness</artifactId>
       <scope>test</scope>
     </dependency>
+<!--    <dependency>-->
+<!--      <groupId>io.jenkins.plugins</groupId>-->
+<!--      <artifactId>design-library</artifactId>-->
+<!--      <version>83.vdf76542e277d</version>-->
+<!--    </dependency>-->
   </dependencies>
 
   <repositories>

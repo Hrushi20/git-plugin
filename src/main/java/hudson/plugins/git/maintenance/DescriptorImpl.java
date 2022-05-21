@@ -15,19 +15,19 @@ import org.kohsuke.stapler.QueryParameter;
 
 import static hudson.Util.fixNull;
 
-@Extension @Symbol("parameterizedCron")
-public class DescriptorImpl extends TriggerDescriptor {
-
-	/**
-	 * I don't like inner classes. Using the declaritive support here by calling super constructor with class.
-	 */
-	public DescriptorImpl() {
-//		super(ParameterizedTimerTrigger.class);
-	}
-
-	@SuppressWarnings("rawtypes")
-	@Override
-	public boolean isApplicable(Item item) {
-		return true;
-	}
-}
+//@Extension @Symbol("parameterizedCron")
+//public class DescriptorImpl extends TriggerDescriptor {
+//
+//	/**
+//	 * I don't like inner classes. Using the declaritive support here by calling super constructor with class.
+//	 */
+//	public DescriptorImpl() {
+////		super(ParameterizedTimerTrigger.class);
+//	}
+//
+//	@SuppressWarnings("rawtypes")
+//	@Override
+//	public boolean isApplicable(Item item) {
+//		return true;
+//	}
+//}
