@@ -4,14 +4,25 @@ import antlr.ANTLRException;
 import hudson.scheduler.CronTab;
 import hudson.scheduler.CronTabList;
 import hudson.triggers.Trigger;
+import jenkins.plugins.git.AbstractGitSCMSource;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 //
-public class MaintenanceController {
+public class MaintenanceController extends AbstractGitSCMSource {
     public MaintenanceController(){
 
+    }
+
+    @Override
+    public String getCredentialsId() {
+        return null;
+    }
+
+    @Override
+    public String getRemote() {
+        return null;
     }
 //    HashMap<String,String> maintenanceTasks = new HashMap<>();
 //    HashMap<String, CronTabList> cronTabs;

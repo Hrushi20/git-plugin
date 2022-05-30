@@ -40,7 +40,7 @@ import jenkins.scm.api.trait.SCMSourceTrait;
  */
 public abstract class GitSCMExtensionTrait<E extends GitSCMExtension> extends SCMSourceTrait {
     /**
-     * The extension.
+     * The extension..
      */
     @NonNull
     private final E extension;

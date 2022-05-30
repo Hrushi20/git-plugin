@@ -3,13 +3,24 @@
     <l:layout norefresh="true" type="one-column" title="${%Configuration as Code}" permissions="${app.MANAGE_AND_SYSTEM_READ}">
         <l:main-panel>
             <f:form action="saveCronConfig" method="post" name="saveCronConfig">
-                <input type="text" name="gc"/>
-                <input type="text" name="prefetch"/>
+                <f:entry field="gc">
+                    <input type="text" name="gc" disabled="true"/>
+                </f:entry>
+                <f:entry field="prefetch">
+                    <input type="text" name="prefetch"/>
+                </f:entry>
+                    <f:entry field="commitGraph">
                 <input type="text" name="commitGraph"/>
+                    </f:entry>
                 <f:submit name="saveCronConfig" value="Submit"></f:submit>
-                <f:submit name="runMaintenanceTasks" value="Run Tasks"></f:submit>
-            </f:form>
+                </f:form>
+                <f:form action="runMaintenanceTasks" method="post" name="runMaintenanceTasks">
+                <f:submit name="runMaintenanceTasks" value="Run"></f:submit>
+                </f:form>
             <button class="jenkins-button jenkins-button--destructive">Destructive</button>
+            <button class="jenkins-button jenkins-!-warning-color">Warning</button>
+<!--            <button class="jenkins-button" onclick="notificationBar.show('it worked!', notificationBar.OK);">OK</button>-->
+            <button class="jenkins-button" onClick="notificationBar.show('Check it out', notificationBar.WARNING);">Ok</button>
         </l:main-panel>
     </l:layout>
 
