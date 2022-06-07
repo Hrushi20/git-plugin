@@ -7,20 +7,31 @@ import com.cloudbees.plugins.credentials.common.StandardUsernameCredentials;
 import com.cloudbees.plugins.credentials.common.StandardUsernamePasswordCredentials;
 import com.cloudbees.plugins.credentials.domains.URIRequirementBuilder;
 import com.google.common.collect.Iterables;
-
 import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-
 import hudson.AbortException;
 import hudson.EnvVars;
 import hudson.Extension;
 import hudson.FilePath;
 import hudson.Launcher;
+import hudson.Util;
 import hudson.init.Initializer;
-import hudson.model.*;
+import hudson.model.AbstractBuild;
+import hudson.model.AbstractProject;
 import hudson.model.Descriptor.FormException;
+import hudson.model.Item;
+import hudson.model.Items;
+import hudson.model.Job;
+import hudson.model.Node;
+import hudson.model.Queue;
+import hudson.model.Run;
+import hudson.model.Saveable;
+import hudson.model.TaskListener;
+import hudson.plugins.git.browser.BitbucketWeb;
+import hudson.plugins.git.browser.GitLab;
 import hudson.plugins.git.browser.GitRepositoryBrowser;
+import hudson.plugins.git.browser.GithubWeb;
 import hudson.plugins.git.extensions.GitSCMExtension;
 import hudson.plugins.git.extensions.GitSCMExtensionDescriptor;
 import hudson.plugins.git.extensions.impl.AuthorInChangelog;
@@ -28,13 +39,20 @@ import hudson.plugins.git.extensions.impl.BuildChooserSetting;
 import hudson.plugins.git.extensions.impl.BuildSingleRevisionOnly;
 import hudson.plugins.git.extensions.impl.ChangelogToBranch;
 import hudson.plugins.git.extensions.impl.CloneOption;
-import hudson.plugins.git.extensions.impl.PathRestriction;
 import hudson.plugins.git.extensions.impl.LocalBranch;
-import hudson.plugins.git.extensions.impl.RelativeTargetDirectory;
+import hudson.plugins.git.extensions.impl.PathRestriction;
 import hudson.plugins.git.extensions.impl.PreBuildMerge;
+import hudson.plugins.git.extensions.impl.RelativeTargetDirectory;
+import hudson.plugins.git.extensions.impl.ScmName;
 import hudson.plugins.git.opt.PreBuildMergeOptions;
 import hudson.plugins.git.util.Build;
-import hudson.plugins.git.util.*;
+import hudson.plugins.git.util.BuildChooser;
+import hudson.plugins.git.util.BuildChooserContext;
+import hudson.plugins.git.util.BuildChooserDescriptor;
+import hudson.plugins.git.util.BuildData;
+import hudson.plugins.git.util.DefaultBuildChooser;
+import hudson.plugins.git.util.GitUtils;
+import hudson.plugins.git.util.RevCommitRepositoryCallback;
 import hudson.remoting.Channel;
 import hudson.scm.AbstractScmTagAction;
 import hudson.scm.ChangeLogParser;
@@ -50,11 +68,11 @@ import hudson.triggers.SCMTrigger;
 import hudson.util.DescribableList;
 import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
+import hudson.util.LogTaskListener;
 import jenkins.model.Jenkins;
 import jenkins.plugins.git.GitSCMMatrixUtil;
 import jenkins.plugins.git.GitToolChooser;
 import net.sf.json.JSONObject;
-
 import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.lib.Config;
 import org.eclipse.jgit.lib.ObjectId;
@@ -62,7 +80,14 @@ import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.transport.RefSpec;
 import org.eclipse.jgit.transport.RemoteConfig;
 import org.eclipse.jgit.transport.URIish;
-import org.jenkinsci.plugins.gitclient.*;
+import org.jenkinsci.plugins.gitclient.ChangelogCommand;
+import org.jenkinsci.plugins.gitclient.CheckoutCommand;
+import org.jenkinsci.plugins.gitclient.CliGitAPIImpl;
+import org.jenkinsci.plugins.gitclient.CloneCommand;
+import org.jenkinsci.plugins.gitclient.FetchCommand;
+import org.jenkinsci.plugins.gitclient.Git;
+import org.jenkinsci.plugins.gitclient.GitClient;
+import org.jenkinsci.plugins.gitclient.UnsupportedCommand;
 import org.jenkinsci.plugins.scriptsecurity.sandbox.whitelists.Whitelisted;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.DataBoundSetter;
@@ -70,7 +95,6 @@ import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.export.Exported;
 
 import javax.servlet.ServletException;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
@@ -87,24 +111,18 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static hudson.init.InitMilestone.JOB_LOADED;
 import static hudson.init.InitMilestone.PLUGINS_STARTED;
-import hudson.plugins.git.browser.BitbucketWeb;
-import hudson.plugins.git.browser.GitLab;
-import hudson.plugins.git.browser.GithubWeb;
-import static hudson.scm.PollingResult.*;
-import hudson.Util;
-import hudson.plugins.git.extensions.impl.ScmName;
-import hudson.util.LogTaskListener;
-import java.util.Map.Entry;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
+import static hudson.scm.PollingResult.BUILD_NOW;
+import static hudson.scm.PollingResult.NO_CHANGES;
 import static org.apache.commons.collections.CollectionUtils.isEmpty;
 import static org.apache.commons.lang.StringUtils.isBlank;
 
@@ -692,7 +710,10 @@ public class GitSCM extends GitSCMBackwardCompatibility {
 
         listener.getLogger().println("Using strategy: " + getBuildChooser().getDisplayName());
 
+        System.out.println("Inside compareRemoteRevisionWIth IMpl");
+
         final Run lastBuild = project.getLastBuild();
+        System.out.println(lastBuild + " last build status is null or not");
         if (lastBuild == null) {
             // If we've never been built before, well, gotta build!
             listener.getLogger().println("[poll] No previous build, so forcing an initial build.");

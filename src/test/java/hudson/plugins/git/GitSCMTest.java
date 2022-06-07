@@ -9,7 +9,6 @@ import com.cloudbees.plugins.credentials.common.StandardCredentials;
 import com.cloudbees.plugins.credentials.domains.Domain;
 import com.cloudbees.plugins.credentials.impl.UsernamePasswordCredentialsImpl;
 import com.gargoylesoftware.htmlunit.html.HtmlPage;
-
 import hudson.EnvVars;
 import hudson.FilePath;
 import hudson.Functions;
@@ -18,13 +17,41 @@ import hudson.matrix.Axis;
 import hudson.matrix.AxisList;
 import hudson.matrix.MatrixBuild;
 import hudson.matrix.MatrixProject;
-import hudson.model.*;
+import hudson.model.AbstractBuild;
+import hudson.model.Action;
+import hudson.model.Build;
+import hudson.model.Cause;
+import hudson.model.Descriptor;
+import hudson.model.EnvironmentContributingAction;
+import hudson.model.EnvironmentContributor;
+import hudson.model.Fingerprint;
+import hudson.model.FreeStyleBuild;
+import hudson.model.FreeStyleProject;
+import hudson.model.Job;
+import hudson.model.ParameterValue;
+import hudson.model.ParametersAction;
+import hudson.model.ParametersDefinitionProperty;
+import hudson.model.Result;
+import hudson.model.Run;
+import hudson.model.StringParameterDefinition;
+import hudson.model.StringParameterValue;
+import hudson.model.TaskListener;
+import hudson.model.User;
 import hudson.plugins.git.GitSCM.BuildChooserContextImpl;
 import hudson.plugins.git.GitSCM.DescriptorImpl;
 import hudson.plugins.git.browser.GitRepositoryBrowser;
 import hudson.plugins.git.browser.GithubWeb;
 import hudson.plugins.git.extensions.GitSCMExtension;
-import hudson.plugins.git.extensions.impl.*;
+import hudson.plugins.git.extensions.impl.AuthorInChangelog;
+import hudson.plugins.git.extensions.impl.ChangelogToBranch;
+import hudson.plugins.git.extensions.impl.CleanBeforeCheckout;
+import hudson.plugins.git.extensions.impl.CloneOption;
+import hudson.plugins.git.extensions.impl.DisableRemotePoll;
+import hudson.plugins.git.extensions.impl.LocalBranch;
+import hudson.plugins.git.extensions.impl.PreBuildMerge;
+import hudson.plugins.git.extensions.impl.RelativeTargetDirectory;
+import hudson.plugins.git.extensions.impl.SparseCheckoutPath;
+import hudson.plugins.git.extensions.impl.SparseCheckoutPaths;
 import hudson.plugins.git.util.BuildChooser;
 import hudson.plugins.git.util.BuildChooserContext;
 import hudson.plugins.git.util.BuildChooserContext.ContextCallable;
@@ -48,7 +75,9 @@ import hudson.triggers.SCMTrigger;
 import hudson.util.LogTaskListener;
 import hudson.util.RingBufferLogHandler;
 import hudson.util.StreamTaskListener;
-
+import jenkins.model.Jenkins;
+import jenkins.plugins.git.CliGitCommand;
+import jenkins.plugins.git.GitSampleRepoRule;
 import jenkins.security.MasterToSlaveCallable;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
@@ -57,19 +86,27 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.transport.RemoteConfig;
+import org.jenkinsci.plugins.gitclient.Git;
+import org.jenkinsci.plugins.gitclient.GitClient;
+import org.jenkinsci.plugins.gitclient.JGitTool;
+import org.jenkinsci.plugins.gitclient.MergeCommand;
+import org.jenkinsci.plugins.gitclient.RepositoryCallback;
 import org.jenkinsci.plugins.tokenmacro.TokenMacro;
-import org.jenkinsci.plugins.gitclient.*;
 import org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition;
 import org.jenkinsci.plugins.workflow.job.WorkflowJob;
 import org.jenkinsci.plugins.workflow.job.WorkflowRun;
+import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
+import org.jvnet.hudson.test.Issue;
+import org.jvnet.hudson.test.JenkinsRule;
 import org.jvnet.hudson.test.LoggerRule;
 import org.jvnet.hudson.test.MockAuthorizationStrategy;
 import org.jvnet.hudson.test.TestExtension;
-
-import static org.jvnet.hudson.test.LoggerRule.recorded;
+import org.mockito.Mockito;
 
 import java.io.File;
 import java.io.IOException;
@@ -78,18 +115,33 @@ import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.net.URL;
 import java.text.MessageFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Random;
+import java.util.Scanner;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import org.eclipse.jgit.transport.RemoteConfig;
-import static org.hamcrest.MatcherAssert.*;
-import static org.hamcrest.Matchers.*;
-import org.jvnet.hudson.test.Issue;
-import org.jvnet.hudson.test.JenkinsRule;
-
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -97,18 +149,10 @@ import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.BeforeClass;
-
-import org.mockito.Mockito;
+import static org.jvnet.hudson.test.LoggerRule.recorded;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-
-import jenkins.model.Jenkins;
-import jenkins.plugins.git.CliGitCommand;
-import jenkins.plugins.git.GitSampleRepoRule;
 
 /**
  * Tests for {@link GitSCM}.
@@ -143,12 +187,12 @@ public class GitSCMTest extends AbstractGitTestCase {
         assertThat("The system credentials provider is enabled", store, notNullValue());
     }
 
-    @After
-    public void waitForJenkinsIdle() throws Exception {
-        if (cleanupIsUnreliable()) {
-            rule.waitUntilNoActivityUpTo(5001);
-        }
-    }
+//    @After
+//    public void waitForJenkinsIdle() throws Exception {
+//        if (cleanupIsUnreliable()) {
+//            rule.waitUntilNoActivityUpTo(5001);
+//        }
+//    }
 
     private StandardCredentials getInvalidCredential() {
         String username = "bad-user";
@@ -1814,6 +1858,7 @@ public class GitSCMTest extends AbstractGitTestCase {
     @Test
     public void testNonExistentWorkingDirectoryPoll() throws Exception {
         FreeStyleProject project = setupSimpleProject("master");
+        System.out.println(project.getName() + " si the name");
 
         // create initial commit and then run the build against it
         final String commitFile1 = "commitFile1";
@@ -1836,6 +1881,7 @@ public class GitSCMTest extends AbstractGitTestCase {
         TaskListener taskListener = new LogTaskListener(pollLogger, Level.INFO);
 
         // Make sure that polling returns BUILD_NOW and properly log the reason
+        System.out.println(build1.getWorkspace() + " is the file path");
         FilePath filePath = build1.getWorkspace();
         assertThat(project.getScm().compareRemoteRevisionWith(project, new Launcher.LocalLauncher(taskListener), 
                 filePath, taskListener, null), is(PollingResult.BUILD_NOW));

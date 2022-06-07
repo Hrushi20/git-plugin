@@ -2,6 +2,12 @@
 <j:jelly xmlns:j="jelly:core" xmlns:l="/lib/layout" xmlns:f="/lib/form" xmlns:i="jelly:fmt" xmlns:st="jelly:stapler">
     <l:layout norefresh="true" type="one-column" title="${%Configuration as Code}" permissions="${app.MANAGE_AND_SYSTEM_READ}">
         <l:main-panel>
+<!--            <f:entry field="gc" title="Gc">-->
+<!--                <f:textbox checkMethod="post"/>-->
+<!--            </f:entry>-->
+<!--            <f:entry field="prefetch" title="Prefetch">-->
+<!--                <f:textbox checkMethod="post"/>-->
+<!--            </f:entry>-->
             <f:form action="saveCronConfig" method="post" name="saveCronConfig">
                 <f:entry field="gc">
                     <input type="text" name="gc" disabled="true"/>
@@ -16,7 +22,7 @@
                 </f:form>
                 <f:form action="runMaintenanceTasks" method="post" name="runMaintenanceTasks">
                 <f:submit name="runMaintenanceTasks" value="Run"></f:submit>
-                </f:form>
+                </f:form>-->
             <button class="jenkins-button jenkins-button--destructive">Destructive</button>
             <button class="jenkins-button jenkins-!-warning-color">Warning</button>
 <!--            <button class="jenkins-button" onclick="notificationBar.show('it worked!', notificationBar.OK);">OK</button>-->
