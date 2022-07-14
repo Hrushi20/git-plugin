@@ -1321,8 +1321,9 @@ public abstract class AbstractGitSCMSource extends SCMSource {
         if (!cacheDir.isDirectory()) {
             if (createDirectory) {
                 boolean ok = cacheDir.mkdirs();
-                cacheEntries.add(cacheEntry);
-                if (!ok) {
+                if(ok) {
+                    cacheEntries.add(cacheEntry);
+                }else{
                     LOGGER.log(Level.WARNING, "Failed mkdirs of {0}", cacheDir);
                 }
             } else {
